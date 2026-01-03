@@ -82,38 +82,47 @@ export const useSpeech = () => {
       }
 
       if (!data?.success || !data?.audioContent) {
+        console.error('ElevenLabs response error:', data?.error);
         throw new Error(data?.error || 'Failed to generate audio');
       }
 
       await playAudioFromBase64(data.audioContent, settings.volume);
     } catch (error) {
       console.error('ElevenLabs TTS error:', error);
-      toast.error('Erro ao gerar áudio. Tentando voz alternativa...');
-      // Fallback to Web Speech API
-      speakWithWebSpeech(text);
+      // Silently fallback to Web Speech API without showing error toast
+      setIsLoading(false);
+      return speakWithWebSpeech(text);
     } finally {
       setIsLoading(false);
     }
   }, [settings.voiceId, settings.volume, playAudioFromBase64]);
 
-  const speakWithWebSpeech = useCallback((text: string) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Try to find a Portuguese voice
-    const voices = speechSynthesis.getVoices();
-    const ptVoice = voices.find(v => v.lang.startsWith('pt') || v.lang.includes('BR'));
-    if (ptVoice) {
-      utterance.voice = ptVoice;
-    }
-    
-    utterance.volume = settings.volume;
-    utterance.rate = 1;
+  const speakWithWebSpeech = useCallback((text: string): Promise<void> => {
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Try to find a Portuguese voice
+      const voices = speechSynthesis.getVoices();
+      const ptVoice = voices.find(v => v.lang.startsWith('pt') || v.lang.includes('BR'));
+      if (ptVoice) {
+        utterance.voice = ptVoice;
+      }
+      
+      utterance.volume = settings.volume;
+      utterance.rate = 1;
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        resolve();
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        resolve();
+      };
 
-    speechSynthesis.speak(utterance);
+      speechSynthesis.speak(utterance);
+    });
   }, [settings.volume]);
 
   const processQueue = useCallback(async () => {
