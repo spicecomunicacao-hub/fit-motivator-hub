@@ -15,7 +15,7 @@ const CLOSING_ANNOUNCEMENTS: ClosingAnnouncement[] = [
 ];
 
 const generateMessage = (minutesUntilClose: number): string => {
-  return `Atenção, a academia encerrará suas atividades em ${minutesUntilClose} minutos. Por favor, finalize seus treinos e guarde os pesos e aparelhos utilizados. Obrigado.`;
+  return `Atenção, a academia encerrará suas atividades em ${minutesUntilClose} minutos. Por favor, prepare-se para finalizar seus treinos e guarde os pesos e aparelhos utilizados. Obrigado.`;
 };
 
 export const useClosingAnnouncements = (
