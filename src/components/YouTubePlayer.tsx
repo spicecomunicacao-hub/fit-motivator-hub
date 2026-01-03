@@ -13,35 +13,74 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const extractVideoId = (url: string): string | null => {
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-      /youtube\.com\/playlist\?list=([^&\n?#]+)/,
+    // Handle various YouTube URL formats
+    const videoPatterns = [
+      /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
+      /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+      /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+      /(?:youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
+      /(?:youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
     ];
 
-    for (const pattern of patterns) {
+    for (const pattern of videoPatterns) {
       const match = url.match(pattern);
       if (match) return match[1];
     }
+
+    // Handle playlist URLs
+    const playlistPattern = /[?&]list=([a-zA-Z0-9_-]+)/;
+    const playlistMatch = url.match(playlistPattern);
+    if (playlistMatch) return playlistMatch[1];
+
     return null;
   };
 
   const isPlaylist = (url: string): boolean => {
-    return url.includes('playlist?list=') || url.includes('&list=');
+    return url.includes('list=') && !url.includes('watch?v=');
+  };
+
+  const getPlaylistId = (url: string): string | null => {
+    const match = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
   };
 
   const handleLoadVideo = () => {
-    const id = extractVideoId(videoUrl);
-    if (!id) return;
+    console.log('Loading video from URL:', videoUrl);
+    
+    // Check if it's a playlist-only URL
+    if (isPlaylist(videoUrl)) {
+      const playlistId = getPlaylistId(videoUrl);
+      if (playlistId) {
+        console.log('Playlist detected, ID:', playlistId);
+        setIsLoading(true);
+        setEmbedUrl(`https://www.youtube.com/embed/videoseries?list=${playlistId}&autoplay=1`);
+        setTimeout(() => setIsLoading(false), 1500);
+        return;
+      }
+    }
+
+    // Extract video ID
+    const videoId = extractVideoId(videoUrl);
+    console.log('Extracted video ID:', videoId);
+    
+    if (!videoId) {
+      console.log('Could not extract video ID');
+      return;
+    }
 
     setIsLoading(true);
 
-    if (isPlaylist(videoUrl)) {
-      setEmbedUrl(`https://www.youtube.com/embed/videoseries?list=${id}&autoplay=1`);
+    // Check if the URL also contains a playlist
+    const playlistId = getPlaylistId(videoUrl);
+    if (playlistId) {
+      console.log('Video with playlist, playlist ID:', playlistId);
+      setEmbedUrl(`https://www.youtube.com/embed/${videoId}?list=${playlistId}&autoplay=1&rel=0`);
     } else {
-      setEmbedUrl(`https://www.youtube.com/embed/${id}?autoplay=1&rel=0`);
+      setEmbedUrl(`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`);
     }
 
-    setTimeout(() => setIsLoading(false), 1000);
+    console.log('Embed URL set');
+    setTimeout(() => setIsLoading(false), 1500);
   };
 
   return (
@@ -62,7 +101,7 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className }) => {
         <Button 
           onClick={handleLoadVideo} 
           className="gradient-energy shadow-energy"
-          disabled={!videoUrl}
+          disabled={!videoUrl.trim()}
         >
           <Play className="w-4 h-4 mr-2" />
           Carregar
@@ -70,7 +109,7 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className }) => {
       </div>
 
       {/* Player */}
-      <div className="flex-1 rounded-xl overflow-hidden bg-black/50 shadow-card relative">
+      <div className="flex-1 rounded-xl overflow-hidden bg-black/50 shadow-card relative min-h-[400px]">
         {embedUrl ? (
           <>
             {isLoading && (
@@ -79,10 +118,13 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className }) => {
               </div>
             )}
             <iframe
+              key={embedUrl}
               src={embedUrl}
-              className="w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              className="w-full h-full absolute inset-0"
+              style={{ border: 'none' }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
+              title="YouTube video player"
             />
           </>
         ) : (
