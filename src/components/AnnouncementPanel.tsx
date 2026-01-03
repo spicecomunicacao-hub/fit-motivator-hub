@@ -3,18 +3,23 @@ import { Volume2, VolumeX, Play, Square, Settings, Loader2, Sparkles } from 'luc
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import TimerCard from './TimerCard';
 import TimerEditDialog from './TimerEditDialog';
 import ClosingAnnouncementsCard from './ClosingAnnouncementsCard';
-import { useSpeech, ELEVENLABS_VOICES } from '@/hooks/useSpeech';
+import { useSpeech, MURF_VOICES, ELEVENLABS_VOICES, VoiceEngine } from '@/hooks/useSpeech';
 import { useAnnouncementTimers, TimerConfig } from '@/hooks/useAnnouncementTimers';
 import { useClosingAnnouncements } from '@/hooks/useClosingAnnouncements';
 
 interface AnnouncementPanelProps {
   onMediaVolumeChange?: (volume: number) => void;
 }
+
+const ENGINE_OPTIONS: { value: VoiceEngine; label: string; description: string }[] = [
+  { value: 'murf', label: 'Murf.ai (Padrão)', description: 'Vozes brasileiras profissionais' },
+  { value: 'elevenlabs', label: 'ElevenLabs', description: 'Vozes multilíngues premium' },
+  { value: 'webspeech', label: 'Navegador', description: 'Voz do sistema (gratuita)' },
+];
 
 const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChange }) => {
   const { speak, stop, isSpeaking, isLoading, voices, settings, updateSettings } = useSpeech();
@@ -63,6 +68,10 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
     triggerManually: triggerClosingManually,
   } = useClosingAnnouncements(handleClosingAnnounce, handleAnnouncementStart, handleAnnouncementEnd);
 
+  // Get current voices based on engine
+  const currentVoices = settings.engine === 'murf' ? MURF_VOICES : 
+                        settings.engine === 'elevenlabs' ? ELEVENLABS_VOICES : [];
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -80,54 +89,78 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
       {/* Voice Settings */}
       {showSettings && (
         <div className="mb-4 p-4 rounded-xl bg-secondary/50 border border-border space-y-4 animate-fade-in">
-          {/* ElevenLabs Toggle */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <label className="text-sm font-medium">Vozes Premium (ElevenLabs)</label>
-            </div>
-            <Switch
-              checked={settings.useElevenLabs}
-              onCheckedChange={(useElevenLabs) => updateSettings({ useElevenLabs })}
-              className="data-[state=checked]:bg-primary"
-            />
-          </div>
-
-          {settings.useElevenLabs && (
-            <p className="text-xs text-muted-foreground">
-              Vozes profissionais de alta qualidade com pronúncia natural em português.
-            </p>
-          )}
-
-          {/* Voice Selection */}
+          {/* Engine Selection */}
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">
-              Voz
+            <label className="text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              Motor de Voz
             </label>
             <Select
-              value={settings.voiceId}
-              onValueChange={(voiceId) => {
-                const voice = ELEVENLABS_VOICES.find(v => v.id === voiceId);
-                if (voice) {
-                  updateSettings({ voiceId: voice.id, voiceName: voice.name });
-                }
+              value={settings.engine}
+              onValueChange={(engine: VoiceEngine) => {
+                const newVoices = engine === 'murf' ? MURF_VOICES : 
+                                  engine === 'elevenlabs' ? ELEVENLABS_VOICES : [];
+                const firstVoice = newVoices[0];
+                updateSettings({ 
+                  engine, 
+                  voiceId: firstVoice?.id || '',
+                  voiceName: firstVoice?.name || '',
+                });
               }}
             >
               <SelectTrigger className="bg-background">
-                <SelectValue placeholder="Selecione uma voz" />
+                <SelectValue placeholder="Selecione o motor de voz" />
               </SelectTrigger>
               <SelectContent>
-                {ELEVENLABS_VOICES.map((voice) => (
-                  <SelectItem key={voice.id} value={voice.id}>
+                {ENGINE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
                     <div className="flex flex-col">
-                      <span>{voice.name}</span>
-                      <span className="text-xs text-muted-foreground">{voice.description}</span>
+                      <span>{option.label}</span>
+                      <span className="text-xs text-muted-foreground">{option.description}</span>
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          {/* Voice Selection - Only show for Murf and ElevenLabs */}
+          {settings.engine !== 'webspeech' && currentVoices.length > 0 && (
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                Voz
+              </label>
+              <Select
+                value={settings.voiceId}
+                onValueChange={(voiceId) => {
+                  const voice = currentVoices.find(v => v.id === voiceId);
+                  if (voice) {
+                    updateSettings({ voiceId: voice.id, voiceName: voice.name });
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Selecione uma voz" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currentVoices.map((voice) => (
+                    <SelectItem key={voice.id} value={voice.id}>
+                      <div className="flex flex-col">
+                        <span>{voice.name}</span>
+                        <span className="text-xs text-muted-foreground">{voice.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {settings.engine === 'webspeech' && (
+            <p className="text-xs text-muted-foreground">
+              Usando a voz padrão do navegador. A qualidade pode variar dependendo do sistema.
+            </p>
+          )}
 
           {/* Volume */}
           <div>
@@ -174,7 +207,9 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
       {isLoading && (
         <div className="mb-4 p-3 rounded-lg bg-muted/50 border border-border flex items-center gap-3 animate-fade-in">
           <Loader2 className="w-5 h-5 animate-spin text-primary" />
-          <span className="text-sm text-muted-foreground">Gerando áudio com voz premium...</span>
+          <span className="text-sm text-muted-foreground">
+            Gerando áudio com {settings.engine === 'murf' ? 'Murf.ai' : 'ElevenLabs'}...
+          </span>
         </div>
       )}
 
