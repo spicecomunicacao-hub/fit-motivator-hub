@@ -1,16 +1,30 @@
-import React, { useState } from 'react';
-import { Play, Youtube, Link2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, Youtube, Link2, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 interface YouTubePlayerProps {
   className?: string;
+  volumeMultiplier?: number;
 }
 
-const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className }) => {
+const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className, volumeMultiplier = 1 }) => {
   const [videoUrl, setVideoUrl] = useState('');
   const [embedUrl, setEmbedUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isVolumeDimmed, setIsVolumeDimmed] = useState(false);
+  const previousMultiplier = useRef(volumeMultiplier);
+
+  // Show volume dimming indicator
+  useEffect(() => {
+    if (volumeMultiplier < 1 && previousMultiplier.current === 1) {
+      setIsVolumeDimmed(true);
+    } else if (volumeMultiplier === 1 && previousMultiplier.current < 1) {
+      setIsVolumeDimmed(false);
+    }
+    previousMultiplier.current = volumeMultiplier;
+  }, [volumeMultiplier]);
 
   const extractVideoId = (url: string): string | null => {
     // Handle various YouTube URL formats
@@ -117,10 +131,22 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className }) => {
                 <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
             )}
+            
+            {/* Volume Dimmed Indicator */}
+            {isVolumeDimmed && (
+              <div className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-warning/90 text-warning-foreground px-3 py-2 rounded-lg animate-fade-in">
+                <VolumeX className="w-4 h-4" />
+                <span className="text-sm font-medium">Volume reduzido - Aviso em execução</span>
+              </div>
+            )}
+            
             <iframe
               key={embedUrl}
               src={embedUrl}
-              className="w-full h-full absolute inset-0"
+              className={cn(
+                "w-full h-full absolute inset-0 transition-opacity duration-500",
+                isVolumeDimmed && "opacity-60"
+              )}
               style={{ border: 'none' }}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
