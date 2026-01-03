@@ -1,13 +1,14 @@
 import React, { useState, useCallback } from 'react';
-import { Volume2, VolumeX, Play, Square, Settings } from 'lucide-react';
+import { Volume2, VolumeX, Play, Square, Settings, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import TimerCard from './TimerCard';
 import TimerEditDialog from './TimerEditDialog';
 import ClosingAnnouncementsCard from './ClosingAnnouncementsCard';
-import { useSpeech } from '@/hooks/useSpeech';
+import { useSpeech, ELEVENLABS_VOICES } from '@/hooks/useSpeech';
 import { useAnnouncementTimers, TimerConfig } from '@/hooks/useAnnouncementTimers';
 import { useClosingAnnouncements } from '@/hooks/useClosingAnnouncements';
 
@@ -16,7 +17,7 @@ interface AnnouncementPanelProps {
 }
 
 const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChange }) => {
-  const { speak, stop, isSpeaking, voices, settings, updateSettings } = useSpeech();
+  const { speak, stop, isSpeaking, isLoading, voices, settings, updateSettings } = useSpeech();
   const [editingTimer, setEditingTimer] = useState<TimerConfig | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [lastAnnouncement, setLastAnnouncement] = useState<{ message: string; timer?: TimerConfig; isClosing?: boolean } | null>(null);
@@ -62,8 +63,6 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
     triggerManually: triggerClosingManually,
   } = useClosingAnnouncements(handleClosingAnnounce, handleAnnouncementStart, handleAnnouncementEnd);
 
-  const ptVoices = voices.filter(v => v.lang.startsWith('pt'));
-
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -81,55 +80,67 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
       {/* Voice Settings */}
       {showSettings && (
         <div className="mb-4 p-4 rounded-xl bg-secondary/50 border border-border space-y-4 animate-fade-in">
+          {/* ElevenLabs Toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <label className="text-sm font-medium">Vozes Premium (ElevenLabs)</label>
+            </div>
+            <Switch
+              checked={settings.useElevenLabs}
+              onCheckedChange={(useElevenLabs) => updateSettings({ useElevenLabs })}
+              className="data-[state=checked]:bg-primary"
+            />
+          </div>
+
+          {settings.useElevenLabs && (
+            <p className="text-xs text-muted-foreground">
+              Vozes profissionais de alta qualidade com pronúncia natural em português.
+            </p>
+          )}
+
+          {/* Voice Selection */}
           <div>
             <label className="text-sm font-medium text-muted-foreground mb-2 block">
               Voz
             </label>
             <Select
-              value={settings.voice?.name || ''}
-              onValueChange={(name) => {
-                const voice = voices.find(v => v.name === name);
-                if (voice) updateSettings({ voice });
+              value={settings.voiceId}
+              onValueChange={(voiceId) => {
+                const voice = ELEVENLABS_VOICES.find(v => v.id === voiceId);
+                if (voice) {
+                  updateSettings({ voiceId: voice.id, voiceName: voice.name });
+                }
               }}
             >
               <SelectTrigger className="bg-background">
                 <SelectValue placeholder="Selecione uma voz" />
               </SelectTrigger>
               <SelectContent>
-                {(ptVoices.length > 0 ? ptVoices : voices).map((voice) => (
-                  <SelectItem key={voice.name} value={voice.name}>
-                    {voice.name} ({voice.lang})
+                {ELEVENLABS_VOICES.map((voice) => (
+                  <SelectItem key={voice.id} value={voice.id}>
+                    <div className="flex flex-col">
+                      <span>{voice.name}</span>
+                      <span className="text-xs text-muted-foreground">{voice.description}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                Velocidade: {settings.rate.toFixed(1)}x
-              </label>
-              <Slider
-                value={[settings.rate]}
-                onValueChange={([rate]) => updateSettings({ rate })}
-                min={0.5}
-                max={2}
-                step={0.1}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                Volume: {Math.round(settings.volume * 100)}%
-              </label>
-              <Slider
-                value={[settings.volume]}
-                onValueChange={([volume]) => updateSettings({ volume })}
-                min={0}
-                max={1}
-                step={0.1}
-              />
-            </div>
+          {/* Volume */}
+          <div>
+            <label className="text-sm font-medium text-muted-foreground mb-2 block">
+              Volume: {Math.round(settings.volume * 100)}%
+            </label>
+            <Slider
+              value={[settings.volume]}
+              onValueChange={([volume]) => updateSettings({ volume })}
+              min={0}
+              max={1}
+              step={0.1}
+            />
           </div>
         </div>
       )}
@@ -158,6 +169,14 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
           )}
         </Button>
       </div>
+
+      {/* Loading Indicator */}
+      {isLoading && (
+        <div className="mb-4 p-3 rounded-lg bg-muted/50 border border-border flex items-center gap-3 animate-fade-in">
+          <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          <span className="text-sm text-muted-foreground">Gerando áudio com voz premium...</span>
+        </div>
+      )}
 
       {/* Speaking Indicator */}
       {isSpeaking && (
