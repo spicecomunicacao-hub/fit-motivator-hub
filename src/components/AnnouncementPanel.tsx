@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Volume2, VolumeX, Play, Square, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -6,19 +6,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import TimerCard from './TimerCard';
 import TimerEditDialog from './TimerEditDialog';
+import ClosingAnnouncementsCard from './ClosingAnnouncementsCard';
 import { useSpeech } from '@/hooks/useSpeech';
 import { useAnnouncementTimers, TimerConfig } from '@/hooks/useAnnouncementTimers';
+import { useClosingAnnouncements } from '@/hooks/useClosingAnnouncements';
 
-const AnnouncementPanel: React.FC = () => {
+interface AnnouncementPanelProps {
+  onMediaVolumeChange?: (volume: number) => void;
+}
+
+const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChange }) => {
   const { speak, stop, isSpeaking, voices, settings, updateSettings } = useSpeech();
   const [editingTimer, setEditingTimer] = useState<TimerConfig | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [lastAnnouncement, setLastAnnouncement] = useState<{ message: string; timer: TimerConfig } | null>(null);
+  const [lastAnnouncement, setLastAnnouncement] = useState<{ message: string; timer?: TimerConfig; isClosing?: boolean } | null>(null);
 
   const handleAnnounce = (message: string, timer: TimerConfig) => {
     setLastAnnouncement({ message, timer });
     speak(message);
   };
+
+  const handleClosingAnnounce = useCallback((message: string) => {
+    setLastAnnouncement({ message, isClosing: true });
+    speak(message);
+  }, [speak]);
+
+  const handleAnnouncementStart = useCallback(() => {
+    // Reduce media volume during announcement
+    onMediaVolumeChange?.(0.2);
+  }, [onMediaVolumeChange]);
+
+  const handleAnnouncementEnd = useCallback(() => {
+    // Restore media volume after announcement
+    onMediaVolumeChange?.(1);
+  }, [onMediaVolumeChange]);
 
   const {
     timers,
@@ -29,6 +50,17 @@ const AnnouncementPanel: React.FC = () => {
     triggerNow,
     getTimeUntilNext,
   } = useAnnouncementTimers(handleAnnounce);
+
+  const {
+    enabled: closingEnabled,
+    toggleEnabled: toggleClosingEnabled,
+    announcements: closingAnnouncements,
+    lastTriggered: closingLastTriggered,
+    nextAnnouncement: closingNextAnnouncement,
+    timeUntilNext: closingTimeUntilNext,
+    closingTime,
+    triggerManually: triggerClosingManually,
+  } = useClosingAnnouncements(handleClosingAnnounce, handleAnnouncementStart, handleAnnouncementEnd);
 
   const ptVoices = voices.filter(v => v.lang.startsWith('pt'));
 
@@ -129,14 +161,28 @@ const AnnouncementPanel: React.FC = () => {
 
       {/* Speaking Indicator */}
       {isSpeaking && (
-        <div className="mb-4 p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center gap-3 animate-scale-in">
+        <div className={cn(
+          "mb-4 p-3 rounded-lg flex items-center gap-3 animate-scale-in",
+          lastAnnouncement?.isClosing 
+            ? "bg-warning/10 border border-warning/30" 
+            : "bg-primary/10 border border-primary/30"
+        )}>
           <div className="relative">
-            <Volume2 className="w-6 h-6 text-primary animate-pulse" />
-            <div className="absolute -inset-1 bg-primary/20 rounded-full animate-ping" />
+            <Volume2 className={cn(
+              "w-6 h-6 animate-pulse",
+              lastAnnouncement?.isClosing ? "text-warning" : "text-primary"
+            )} />
+            <div className={cn(
+              "absolute -inset-1 rounded-full animate-ping",
+              lastAnnouncement?.isClosing ? "bg-warning/20" : "bg-primary/20"
+            )} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-primary truncate">
-              {lastAnnouncement?.timer.icon} {lastAnnouncement?.timer.name}
+            <p className={cn(
+              "text-sm font-medium truncate",
+              lastAnnouncement?.isClosing ? "text-warning" : "text-primary"
+            )}>
+              {lastAnnouncement?.isClosing ? '🚨 Aviso de Fechamento' : `${lastAnnouncement?.timer?.icon} ${lastAnnouncement?.timer?.name}`}
             </p>
             <p className="text-xs text-muted-foreground truncate">
               {lastAnnouncement?.message}
@@ -147,6 +193,20 @@ const AnnouncementPanel: React.FC = () => {
           </Button>
         </div>
       )}
+
+      {/* Closing Announcements - Priority Section */}
+      <div className="mb-4">
+        <ClosingAnnouncementsCard
+          enabled={closingEnabled}
+          onToggle={toggleClosingEnabled}
+          announcements={closingAnnouncements}
+          lastTriggered={closingLastTriggered}
+          nextAnnouncement={closingNextAnnouncement}
+          timeUntilNext={closingTimeUntilNext}
+          closingTime={closingTime}
+          onTriggerManually={triggerClosingManually}
+        />
+      </div>
 
       {/* Timer Cards */}
       <div className="flex-1 space-y-3 overflow-y-auto">
