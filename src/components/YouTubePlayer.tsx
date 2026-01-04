@@ -9,12 +9,38 @@ interface YouTubePlayerProps {
   volumeMultiplier?: number;
 }
 
+const STORAGE_KEY = 'gym-youtube-url';
+
+// Load URL from localStorage
+const loadUrlFromStorage = (): string => {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || '';
+  } catch (error) {
+    console.error('Error loading URL from localStorage:', error);
+    return '';
+  }
+};
+
+// Save URL to localStorage
+const saveUrlToStorage = (url: string) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, url);
+  } catch (error) {
+    console.error('Error saving URL to localStorage:', error);
+  }
+};
+
 const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className, volumeMultiplier = 1 }) => {
-  const [videoUrl, setVideoUrl] = useState('');
+  const [videoUrl, setVideoUrl] = useState(() => loadUrlFromStorage());
   const [embedUrl, setEmbedUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isVolumeDimmed, setIsVolumeDimmed] = useState(false);
   const previousMultiplier = useRef(volumeMultiplier);
+
+  // Save URL to localStorage when it changes
+  useEffect(() => {
+    saveUrlToStorage(videoUrl);
+  }, [videoUrl]);
 
   // Show volume dimming indicator
   useEffect(() => {
