@@ -13,12 +13,14 @@ export interface ElevenLabsVoice {
   description: string;
 }
 
-// Portuguese voices from Murf.ai
+// Murf.ai Gen2 voices with pt-BR support (multilingual voices)
 export const MURF_VOICES: MurfVoice[] = [
-  { id: 'pt-BR-leila', name: 'Leila', description: 'Feminina, brasileira, profissional' },
-  { id: 'pt-BR-marcos', name: 'Marcos', description: 'Masculino, brasileiro, claro' },
-  { id: 'pt-BR-rafaela', name: 'Rafaela', description: 'Feminina, brasileira, amigável' },
-  { id: 'pt-BR-rodrigo', name: 'Rodrigo', description: 'Masculino, brasileiro, natural' },
+  { id: 'en-US-natalie', name: 'Natalie', description: 'Feminina, multilíngue, profissional' },
+  { id: 'en-US-miles', name: 'Miles', description: 'Masculino, multilíngue, versátil' },
+  { id: 'en-US-amara', name: 'Amara', description: 'Feminina, multilíngue, natural' },
+  { id: 'en-US-maverick', name: 'Maverick', description: 'Masculino, multilíngue, narração' },
+  { id: 'en-US-wayne', name: 'Wayne', description: 'Masculino, multilíngue, claro' },
+  { id: 'en-US-samantha', name: 'Samantha', description: 'Feminina, multilíngue, elegante' },
 ];
 
 // ElevenLabs voices as backup
