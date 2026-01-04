@@ -22,31 +22,36 @@ const ENGINE_OPTIONS: { value: VoiceEngine; label: string; description: string }
 ];
 
 const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChange }) => {
-  const { speak, stop, isSpeaking, isLoading, voices, settings, updateSettings } = useSpeech();
   const [editingTimer, setEditingTimer] = useState<TimerConfig | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [lastAnnouncement, setLastAnnouncement] = useState<{ message: string; timer?: TimerConfig; isClosing?: boolean } | null>(null);
 
-  const handleAnnounce = (message: string, timer: TimerConfig) => {
+  // Ducking callbacks - reduce volume more aggressively (to 5% instead of 20%)
+  const handleAnnouncementStart = useCallback(() => {
+    console.log('🔊 Ducking: reducing media volume');
+    onMediaVolumeChange?.(0.05);
+  }, [onMediaVolumeChange]);
+
+  const handleAnnouncementEnd = useCallback(() => {
+    console.log('🔊 Ducking: restoring media volume');
+    onMediaVolumeChange?.(1);
+  }, [onMediaVolumeChange]);
+
+  // Pass ducking callbacks to useSpeech
+  const { speak, stop, isSpeaking, isLoading, voices, settings, updateSettings } = useSpeech({
+    onSpeakStart: handleAnnouncementStart,
+    onSpeakEnd: handleAnnouncementEnd,
+  });
+
+  const handleAnnounce = useCallback((message: string, timer: TimerConfig) => {
     setLastAnnouncement({ message, timer });
     speak(message);
-  };
+  }, [speak]);
 
   const handleClosingAnnounce = useCallback((message: string) => {
     setLastAnnouncement({ message, isClosing: true });
     speak(message);
   }, [speak]);
-
-  const handleAnnouncementStart = useCallback(() => {
-    // Reduce media volume during announcement
-    onMediaVolumeChange?.(0.2);
-  }, [onMediaVolumeChange]);
-
-  const handleAnnouncementEnd = useCallback(() => {
-    // Restore media volume after announcement
-    onMediaVolumeChange?.(1);
-  }, [onMediaVolumeChange]);
-
   const {
     timers,
     isRunning,
@@ -66,7 +71,7 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
     timeUntilNext: closingTimeUntilNext,
     closingTime,
     triggerManually: triggerClosingManually,
-  } = useClosingAnnouncements(handleClosingAnnounce, handleAnnouncementStart, handleAnnouncementEnd);
+  } = useClosingAnnouncements(handleClosingAnnounce);
 
   // Get current voices based on engine
   const currentVoices = settings.engine === 'murf' ? MURF_VOICES : 

@@ -67,13 +67,26 @@ const saveSettingsToStorage = (settings: SpeechSettings) => {
   }
 };
 
-export const useSpeech = () => {
+export interface UseSpeechOptions {
+  onSpeakStart?: () => void;
+  onSpeakEnd?: () => void;
+}
+
+export const useSpeech = (options?: UseSpeechOptions) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [settings, setSettings] = useState<SpeechSettings>(() => loadSettingsFromStorage());
   const speechQueue = useRef<string[]>([]);
   const isProcessing = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const onSpeakStartRef = useRef(options?.onSpeakStart);
+  const onSpeakEndRef = useRef(options?.onSpeakEnd);
+
+  // Keep refs updated
+  useEffect(() => {
+    onSpeakStartRef.current = options?.onSpeakStart;
+    onSpeakEndRef.current = options?.onSpeakEnd;
+  }, [options?.onSpeakStart, options?.onSpeakEnd]);
 
   // Save settings to localStorage whenever they change
   useEffect(() => {
@@ -90,6 +103,7 @@ export const useSpeech = () => {
 
         audio.onended = () => {
           setIsSpeaking(false);
+          onSpeakEndRef.current?.();
           audioRef.current = null;
           resolve();
         };
@@ -97,11 +111,13 @@ export const useSpeech = () => {
         audio.onerror = (e) => {
           console.error('Audio playback error:', e);
           setIsSpeaking(false);
+          onSpeakEndRef.current?.();
           audioRef.current = null;
           reject(new Error('Failed to play audio'));
         };
 
         setIsSpeaking(true);
+        onSpeakStartRef.current?.();
         audio.play().catch(reject);
       } catch (error) {
         reject(error);
@@ -188,13 +204,18 @@ export const useSpeech = () => {
       utterance.volume = settings.volume;
       utterance.rate = 1;
 
-      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        onSpeakStartRef.current?.();
+      };
       utterance.onend = () => {
         setIsSpeaking(false);
+        onSpeakEndRef.current?.();
         resolve();
       };
       utterance.onerror = () => {
         setIsSpeaking(false);
+        onSpeakEndRef.current?.();
         resolve();
       };
 

@@ -19,9 +19,7 @@ const generateMessage = (minutesUntilClose: number): string => {
 };
 
 export const useClosingAnnouncements = (
-  onAnnounce: (message: string) => void,
-  onAnnouncementStart?: () => void,
-  onAnnouncementEnd?: () => void
+  onAnnounce: (message: string) => void
 ) => {
   const [enabled, setEnabled] = useState(true);
   const [lastTriggered, setLastTriggered] = useState<Record<string, string>>({});
@@ -94,10 +92,7 @@ export const useClosingAnnouncements = (
         // Trigger the announcement
         const message = generateMessage(announcement.minutesUntilClose);
         
-        // Call start callback (to reduce media volume)
-        onAnnouncementStart?.();
-        
-        // Speak the message
+        // Speak the message (ducking is handled by useSpeech)
         onAnnounce(message);
         
         // Mark as triggered for today
@@ -105,11 +100,6 @@ export const useClosingAnnouncements = (
           ...prev,
           [announcement.id]: todayKey,
         }));
-
-        // Set a timeout to restore volume after speech (estimate ~10 seconds)
-        setTimeout(() => {
-          onAnnouncementEnd?.();
-        }, 12000);
       }
     }
 
@@ -121,7 +111,7 @@ export const useClosingAnnouncements = (
     } else {
       setTimeUntilNext(null);
     }
-  }, [enabled, lastTriggered, onAnnounce, onAnnouncementStart, onAnnouncementEnd, findNextAnnouncement, calculateTimeUntil]);
+  }, [enabled, lastTriggered, onAnnounce, findNextAnnouncement, calculateTimeUntil]);
 
   useEffect(() => {
     // Check every second
@@ -155,13 +145,10 @@ export const useClosingAnnouncements = (
     const announcement = CLOSING_ANNOUNCEMENTS.find(a => a.id === announcementId);
     if (announcement) {
       const message = generateMessage(announcement.minutesUntilClose);
-      onAnnouncementStart?.();
+      // Ducking is handled by useSpeech
       onAnnounce(message);
-      setTimeout(() => {
-        onAnnouncementEnd?.();
-      }, 12000);
     }
-  }, [onAnnounce, onAnnouncementStart, onAnnouncementEnd]);
+  }, [onAnnounce]);
 
   return {
     enabled,
