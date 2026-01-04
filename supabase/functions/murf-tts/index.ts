@@ -31,9 +31,9 @@ serve(async (req) => {
       );
     }
 
-    const selectedVoiceId = voiceId || 'pt-BR-leila';
+    const selectedVoiceId = voiceId || 'en-US-natalie';
 
-    console.log(`Generating speech with Murf.ai - Voice: ${selectedVoiceId}, Text length: ${text.length}`);
+    console.log(`Generating speech with Murf.ai - Voice: ${selectedVoiceId}, Locale: pt-BR, Text length: ${text.length}`);
 
     const response = await fetch('https://api.murf.ai/v1/speech/generate', {
       method: 'POST',
@@ -45,6 +45,7 @@ serve(async (req) => {
       body: JSON.stringify({
         text: text,
         voiceId: selectedVoiceId,
+        locale: 'pt-BR',
         format: 'MP3',
         encodeAsBase64: true,
         modelVersion: 'GEN2',
