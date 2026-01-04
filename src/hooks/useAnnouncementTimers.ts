@@ -17,6 +17,8 @@ export interface TimerState {
   messageIndex: number;
 }
 
+const STORAGE_KEY = 'gym-announcement-timers';
+
 const DEFAULT_TIMERS: TimerConfig[] = [
   {
     id: 'announcements',
@@ -63,11 +65,38 @@ const DEFAULT_TIMERS: TimerConfig[] = [
   },
 ];
 
+// Load timers from localStorage
+const loadTimersFromStorage = (): TimerConfig[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Error loading timers from localStorage:', error);
+  }
+  return DEFAULT_TIMERS;
+};
+
+// Save timers to localStorage
+const saveTimersToStorage = (timers: TimerConfig[]) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(timers));
+  } catch (error) {
+    console.error('Error saving timers to localStorage:', error);
+  }
+};
+
 export const useAnnouncementTimers = (onAnnounce: (message: string, timerConfig: TimerConfig) => void) => {
-  const [timers, setTimers] = useState<TimerConfig[]>(DEFAULT_TIMERS);
+  const [timers, setTimers] = useState<TimerConfig[]>(() => loadTimersFromStorage());
   const [timerStates, setTimerStates] = useState<TimerState[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Save timers to localStorage whenever they change
+  useEffect(() => {
+    saveTimersToStorage(timers);
+  }, [timers]);
 
   // Initialize timer states
   useEffect(() => {

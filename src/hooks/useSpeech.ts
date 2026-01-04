@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface MurfVoice {
@@ -38,18 +38,47 @@ export interface SpeechSettings {
   engine: VoiceEngine;
 }
 
-export const useSpeech = () => {
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [settings, setSettings] = useState<SpeechSettings>({
+const STORAGE_KEY = 'gym-speech-settings';
+
+// Load settings from localStorage
+const loadSettingsFromStorage = (): SpeechSettings => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Error loading speech settings from localStorage:', error);
+  }
+  return {
     voiceId: MURF_VOICES[0].id,
     voiceName: MURF_VOICES[0].name,
     volume: 1,
-    engine: 'murf', // Default to Murf.ai
-  });
+    engine: 'murf',
+  };
+};
+
+// Save settings to localStorage
+const saveSettingsToStorage = (settings: SpeechSettings) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch (error) {
+    console.error('Error saving speech settings to localStorage:', error);
+  }
+};
+
+export const useSpeech = () => {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [settings, setSettings] = useState<SpeechSettings>(() => loadSettingsFromStorage());
   const speechQueue = useRef<string[]>([]);
   const isProcessing = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Save settings to localStorage whenever they change
+  useEffect(() => {
+    saveSettingsToStorage(settings);
+  }, [settings]);
 
   const playAudioFromBase64 = useCallback((base64Audio: string, volume: number): Promise<void> => {
     return new Promise((resolve, reject) => {
