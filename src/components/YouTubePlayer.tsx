@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Youtube, Link2, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,43 @@ import { cn } from '@/lib/utils';
 interface YouTubePlayerProps {
   className?: string;
   volumeMultiplier?: number;
+}
+
+interface YTPlayer {
+  destroy: () => void;
+  setVolume: (volume: number) => void;
+  getVolume: () => number;
+  playVideo: () => void;
+  pauseVideo: () => void;
+}
+
+interface YTPlayerEvent {
+  target: YTPlayer;
+  data?: number;
+}
+
+interface YTPlayerOptions {
+  videoId?: string;
+  width?: string | number;
+  height?: string | number;
+  playerVars?: Record<string, unknown>;
+  events?: {
+    onReady?: (event: YTPlayerEvent) => void;
+    onError?: (event: YTPlayerEvent) => void;
+    onStateChange?: (event: YTPlayerEvent) => void;
+  };
+}
+
+declare global {
+  interface Window {
+    YT: {
+      Player: new (elementId: string, options: YTPlayerOptions) => YTPlayer;
+      PlayerState: {
+        PLAYING: number;
+      };
+    };
+    onYouTubeIframeAPIReady: () => void;
+  }
 }
 
 const STORAGE_KEY = 'gym-youtube-url';
@@ -30,27 +67,69 @@ const saveUrlToStorage = (url: string) => {
   }
 };
 
+// Load YouTube IFrame API
+const loadYouTubeAPI = (): Promise<void> => {
+  return new Promise((resolve) => {
+    if (window.YT && window.YT.Player) {
+      resolve();
+      return;
+    }
+
+    const existingScript = document.getElementById('youtube-iframe-api');
+    if (existingScript) {
+      // Script already loading, wait for it
+      const checkReady = setInterval(() => {
+        if (window.YT && window.YT.Player) {
+          clearInterval(checkReady);
+          resolve();
+        }
+      }, 100);
+      return;
+    }
+
+    const tag = document.createElement('script');
+    tag.id = 'youtube-iframe-api';
+    tag.src = 'https://www.youtube.com/iframe_api';
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+
+    window.onYouTubeIframeAPIReady = () => {
+      resolve();
+    };
+  });
+};
+
 const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className, volumeMultiplier = 1 }) => {
   const [videoUrl, setVideoUrl] = useState(() => loadUrlFromStorage());
-  const [embedUrl, setEmbedUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isVolumeDimmed, setIsVolumeDimmed] = useState(false);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const playerRef = useRef<YTPlayer | null>(null);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
   const previousMultiplier = useRef(volumeMultiplier);
+  const baseVolumeRef = useRef(100);
 
   // Save URL to localStorage when it changes
   useEffect(() => {
     saveUrlToStorage(videoUrl);
   }, [videoUrl]);
 
-  // Show volume dimming indicator
+  // Control volume based on volumeMultiplier
   useEffect(() => {
-    if (volumeMultiplier < 1 && previousMultiplier.current === 1) {
-      setIsVolumeDimmed(true);
-    } else if (volumeMultiplier === 1 && previousMultiplier.current < 1) {
-      setIsVolumeDimmed(false);
+    if (playerRef.current && isPlayerReady) {
+      const newVolume = Math.round(baseVolumeRef.current * volumeMultiplier);
+      console.log(`🔊 YouTube: Setting volume to ${newVolume}% (base: ${baseVolumeRef.current}, multiplier: ${volumeMultiplier})`);
+      playerRef.current.setVolume(newVolume);
+      
+      // Update dimmed state
+      if (volumeMultiplier < 1 && previousMultiplier.current === 1) {
+        setIsVolumeDimmed(true);
+      } else if (volumeMultiplier === 1 && previousMultiplier.current < 1) {
+        setIsVolumeDimmed(false);
+      }
+      previousMultiplier.current = volumeMultiplier;
     }
-    previousMultiplier.current = volumeMultiplier;
-  }, [volumeMultiplier]);
+  }, [volumeMultiplier, isPlayerReady]);
 
   const extractVideoId = (url: string): string | null => {
     // Handle various YouTube URL formats
@@ -84,17 +163,77 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className, volumeMultipli
     return match ? match[1] : null;
   };
 
-  const handleLoadVideo = () => {
+  const createPlayer = useCallback(async (videoId: string, playlistId?: string) => {
+    await loadYouTubeAPI();
+
+    // Destroy existing player
+    if (playerRef.current) {
+      playerRef.current.destroy();
+      playerRef.current = null;
+      setIsPlayerReady(false);
+    }
+
+    // Clear container
+    if (playerContainerRef.current) {
+      playerContainerRef.current.innerHTML = '<div id="youtube-player"></div>';
+    }
+
+    const playerVars: Record<string, unknown> = {
+      autoplay: 1,
+      rel: 0,
+      enablejsapi: 1,
+      origin: window.location.origin,
+    };
+
+    if (playlistId) {
+      playerVars.list = playlistId;
+      playerVars.listType = 'playlist';
+    }
+
+    playerRef.current = new window.YT.Player('youtube-player', {
+      videoId: playlistId && !videoId ? undefined : videoId,
+      width: '100%',
+      height: '100%',
+      playerVars,
+      events: {
+        onReady: (event) => {
+          console.log('🎬 YouTube Player ready');
+          setIsLoading(false);
+          setIsPlayerReady(true);
+          // Get current volume as base
+          baseVolumeRef.current = event.target.getVolume();
+          // Apply current multiplier
+          const newVolume = Math.round(baseVolumeRef.current * volumeMultiplier);
+          event.target.setVolume(newVolume);
+        },
+        onError: (event) => {
+          console.error('YouTube Player error:', event.data);
+          setIsLoading(false);
+        },
+        onStateChange: (event) => {
+          // Update base volume when user changes it manually
+          if (event.data === window.YT.PlayerState.PLAYING) {
+            const currentVolume = event.target.getVolume();
+            // Only update base if not currently ducking
+            if (volumeMultiplier === 1) {
+              baseVolumeRef.current = currentVolume;
+            }
+          }
+        },
+      },
+    });
+  }, [volumeMultiplier]);
+
+  const handleLoadVideo = useCallback(() => {
     console.log('Loading video from URL:', videoUrl);
+    setIsLoading(true);
     
     // Check if it's a playlist-only URL
     if (isPlaylist(videoUrl)) {
       const playlistId = getPlaylistId(videoUrl);
       if (playlistId) {
         console.log('Playlist detected, ID:', playlistId);
-        setIsLoading(true);
-        setEmbedUrl(`https://www.youtube.com/embed/videoseries?list=${playlistId}&autoplay=1`);
-        setTimeout(() => setIsLoading(false), 1500);
+        createPlayer('', playlistId);
         return;
       }
     }
@@ -105,23 +244,19 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className, volumeMultipli
     
     if (!videoId) {
       console.log('Could not extract video ID');
+      setIsLoading(false);
       return;
     }
-
-    setIsLoading(true);
 
     // Check if the URL also contains a playlist
     const playlistId = getPlaylistId(videoUrl);
     if (playlistId) {
       console.log('Video with playlist, playlist ID:', playlistId);
-      setEmbedUrl(`https://www.youtube.com/embed/${videoId}?list=${playlistId}&autoplay=1&rel=0`);
+      createPlayer(videoId, playlistId);
     } else {
-      setEmbedUrl(`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`);
+      createPlayer(videoId);
     }
-
-    console.log('Embed URL set');
-    setTimeout(() => setIsLoading(false), 1500);
-  };
+  }, [videoUrl, createPlayer]);
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
@@ -150,7 +285,7 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className, volumeMultipli
 
       {/* Player */}
       <div className="flex-1 rounded-xl overflow-hidden bg-black/50 shadow-card relative min-h-[400px]">
-        {embedUrl ? (
+        {playerRef.current || isLoading ? (
           <>
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
@@ -166,18 +301,15 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className, volumeMultipli
               </div>
             )}
             
-            <iframe
-              key={embedUrl}
-              src={embedUrl}
+            <div 
+              ref={playerContainerRef}
               className={cn(
-                "w-full h-full absolute inset-0 transition-opacity duration-500",
+                "w-full h-full transition-opacity duration-300",
                 isVolumeDimmed && "opacity-60"
               )}
-              style={{ border: 'none' }}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              title="YouTube video player"
-            />
+            >
+              <div id="youtube-player" />
+            </div>
           </>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
