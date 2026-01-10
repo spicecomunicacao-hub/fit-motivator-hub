@@ -114,12 +114,43 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className, volumeMultipli
     saveUrlToStorage(videoUrl);
   }, [videoUrl]);
 
-  // Control volume based on volumeMultiplier
+  // Smooth volume transition
+  const smoothVolumeTransition = useCallback((targetVolume: number, duration: number = 300) => {
+    if (!playerRef.current || !isPlayerReady) return;
+    
+    const startVolume = playerRef.current.getVolume();
+    const volumeDiff = targetVolume - startVolume;
+    const steps = 15;
+    const stepDuration = duration / steps;
+    let currentStep = 0;
+    
+    const animate = () => {
+      currentStep++;
+      const progress = currentStep / steps;
+      // Ease-out curve for smoother transition
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      const newVolume = Math.round(startVolume + volumeDiff * easeProgress);
+      
+      if (playerRef.current) {
+        playerRef.current.setVolume(newVolume);
+      }
+      
+      if (currentStep < steps) {
+        setTimeout(animate, stepDuration);
+      }
+    };
+    
+    animate();
+  }, [isPlayerReady]);
+
+  // Control volume based on volumeMultiplier with smooth transition
   useEffect(() => {
     if (playerRef.current && isPlayerReady) {
       const newVolume = Math.round(baseVolumeRef.current * volumeMultiplier);
-      console.log(`🔊 YouTube: Setting volume to ${newVolume}% (base: ${baseVolumeRef.current}, multiplier: ${volumeMultiplier})`);
-      playerRef.current.setVolume(newVolume);
+      console.log(`🔊 YouTube: Transitioning volume to ${newVolume}% (base: ${baseVolumeRef.current}, multiplier: ${volumeMultiplier})`);
+      
+      // Use smooth transition for ducking
+      smoothVolumeTransition(newVolume, 400);
       
       // Update dimmed state
       if (volumeMultiplier < 1 && previousMultiplier.current === 1) {
@@ -129,7 +160,7 @@ const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ className, volumeMultipli
       }
       previousMultiplier.current = volumeMultiplier;
     }
-  }, [volumeMultiplier, isPlayerReady]);
+  }, [volumeMultiplier, isPlayerReady, smoothVolumeTransition]);
 
   const extractVideoId = (url: string): string | null => {
     // Handle various YouTube URL formats
