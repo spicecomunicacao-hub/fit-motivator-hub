@@ -28,10 +28,10 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
   const [showSettings, setShowSettings] = useState(false);
   const [lastAnnouncement, setLastAnnouncement] = useState<{ message: string; timer?: TimerConfig; isClosing?: boolean; isHourly?: boolean } | null>(null);
 
-  // Ducking callbacks - reduce volume more aggressively (to 5% instead of 20%)
+  // Ducking callbacks - reduce volume to 25% during announcements
   const handleAnnouncementStart = useCallback(() => {
     console.log('🔊 Ducking: reducing media volume');
-    onMediaVolumeChange?.(0.05);
+    onMediaVolumeChange?.(0.25);
   }, [onMediaVolumeChange]);
 
   const handleAnnouncementEnd = useCallback(() => {
