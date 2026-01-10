@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { Volume2, VolumeX, Play, Square, Settings, Loader2, Sparkles } from 'lucide-react';
+import { Volume2, VolumeX, Play, Square, Settings, Loader2, Sparkles, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import TimerCard from './TimerCard';
 import TimerEditDialog from './TimerEditDialog';
@@ -10,6 +11,7 @@ import ClosingAnnouncementsCard from './ClosingAnnouncementsCard';
 import { useSpeech, MURF_VOICES, ELEVENLABS_VOICES, VoiceEngine } from '@/hooks/useSpeech';
 import { useAnnouncementTimers, TimerConfig } from '@/hooks/useAnnouncementTimers';
 import { useClosingAnnouncements } from '@/hooks/useClosingAnnouncements';
+import { useHourlyAnnouncement } from '@/hooks/useHourlyAnnouncement';
 
 interface AnnouncementPanelProps {
   onMediaVolumeChange?: (volume: number) => void;
@@ -24,7 +26,7 @@ const ENGINE_OPTIONS: { value: VoiceEngine; label: string; description: string }
 const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChange }) => {
   const [editingTimer, setEditingTimer] = useState<TimerConfig | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [lastAnnouncement, setLastAnnouncement] = useState<{ message: string; timer?: TimerConfig; isClosing?: boolean } | null>(null);
+  const [lastAnnouncement, setLastAnnouncement] = useState<{ message: string; timer?: TimerConfig; isClosing?: boolean; isHourly?: boolean } | null>(null);
 
   // Ducking callbacks - reduce volume more aggressively (to 5% instead of 20%)
   const handleAnnouncementStart = useCallback(() => {
@@ -52,6 +54,11 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
     setLastAnnouncement({ message, isClosing: true });
     speak(message);
   }, [speak]);
+  const handleHourlyAnnounce = useCallback((message: string) => {
+    setLastAnnouncement({ message, isHourly: true });
+    speak(message);
+  }, [speak]);
+
   const {
     timers,
     isRunning,
@@ -72,6 +79,12 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
     closingTime,
     triggerManually: triggerClosingManually,
   } = useClosingAnnouncements(handleClosingAnnounce);
+
+  const {
+    enabled: hourlyEnabled,
+    toggleEnabled: toggleHourlyEnabled,
+    testAnnouncement: testHourlyAnnouncement,
+  } = useHourlyAnnouncement(handleHourlyAnnounce);
 
   // Get current voices based on engine
   const currentVoices = settings.engine === 'murf' ? MURF_VOICES : 
@@ -239,9 +252,12 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
           <div className="flex-1 min-w-0">
             <p className={cn(
               "text-sm font-medium truncate",
-              lastAnnouncement?.isClosing ? "text-warning" : "text-primary"
+              lastAnnouncement?.isClosing ? "text-warning" : 
+              lastAnnouncement?.isHourly ? "text-blue-400" : "text-primary"
             )}>
-              {lastAnnouncement?.isClosing ? '🚨 Aviso de Fechamento' : `${lastAnnouncement?.timer?.icon} ${lastAnnouncement?.timer?.name}`}
+              {lastAnnouncement?.isClosing ? '🚨 Aviso de Fechamento' : 
+               lastAnnouncement?.isHourly ? '🕐 Aviso de Hora' :
+               `${lastAnnouncement?.timer?.icon} ${lastAnnouncement?.timer?.name}`}
             </p>
             <p className="text-xs text-muted-foreground truncate">
               {lastAnnouncement?.message}
@@ -252,6 +268,35 @@ const AnnouncementPanel: React.FC<AnnouncementPanelProps> = ({ onMediaVolumeChan
           </Button>
         </div>
       )}
+
+      {/* Hourly Announcement Control */}
+      <div className="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <h4 className="font-medium text-foreground">Aviso de Hora</h4>
+              <p className="text-xs text-muted-foreground">Anuncia a hora a cada hora cheia</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={testHourlyAnnouncement}
+              className="text-blue-400 hover:text-blue-300"
+            >
+              <Volume2 className="w-4 h-4" />
+            </Button>
+            <Switch
+              checked={hourlyEnabled}
+              onCheckedChange={toggleHourlyEnabled}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* Closing Announcements - Priority Section */}
       <div className="mb-4">

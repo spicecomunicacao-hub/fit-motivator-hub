@@ -1,5 +1,6 @@
 import React from 'react';
-import { Dumbbell, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
+import logoSportFitness from '@/assets/logo-sport-fitness.png';
 
 const Header: React.FC = () => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
@@ -13,8 +14,8 @@ const Header: React.FC = () => {
     <header className="bg-card/80 backdrop-blur-md border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl gradient-energy flex items-center justify-center shadow-energy">
-            <Dumbbell className="w-6 h-6 text-white" />
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center">
+            <img src={logoSportFitness} alt="Sport Fitness" className="w-10 h-10 object-contain" />
           </div>
           <div>
             <h1 className="text-2xl font-display tracking-wider text-gradient">
