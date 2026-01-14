@@ -11,10 +11,13 @@ const CLOSING_TIME = '22:00';
 const CLOSING_ANNOUNCEMENTS: ClosingAnnouncement[] = [
   { id: 'closing-30', time: '21:30', minutesUntilClose: 30 },
   { id: 'closing-15', time: '21:45', minutesUntilClose: 15 },
-  { id: 'closing-10', time: '21:50', minutesUntilClose: 10 },
+  { id: 'closing-0', time: '22:00', minutesUntilClose: 0 },
 ];
 
 const generateMessage = (minutesUntilClose: number): string => {
+  if (minutesUntilClose === 0) {
+    return 'Atenção alunos, a academia está encerrando suas atividades por hoje. Agradecemos a presença de todos e desejamos uma ótima noite!';
+  }
   return `Atenção, a academia encerrará suas atividades em ${minutesUntilClose} minutos. Por favor, prepare-se para finalizar seus treinos e guarde os pesos e aparelhos utilizados. Obrigado.`;
 };
 
